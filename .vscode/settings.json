@@ -8,6 +8,9 @@
     "user.h": "c",
     "fcntl.h": "c",
     "fs.h": "c",
-    "param.h": "c"
+    "param.h": "c",
+    "*.tcc": "c",
+    "fstream": "c",
+    "locale": "c"
   }
 }
