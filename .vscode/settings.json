@@ -1,0 +1,13 @@
+{
+  "files.associations": {
+    ".gitignore": "yaml",
+    ".clang-format": "yaml",
+    "*.S": "asm-intel-x86-generic",
+    "stat.h": "c",
+    "types.h": "c",
+    "user.h": "c",
+    "fcntl.h": "c",
+    "fs.h": "c",
+    "param.h": "c"
+  }
+}
