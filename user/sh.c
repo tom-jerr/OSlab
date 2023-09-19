@@ -48,12 +48,28 @@ struct backcmd {
   int type;
   struct cmd *cmd;
 };
-
+int command_cnt = 0;
 int fork1(void);  // Fork but panics on failure.
 void panic(char *);
 struct cmd *parsecmd(char *);
 void runcmd(struct cmd *) __attribute__((noreturn));
-
+char *itochar(int cnt) {
+  static char buf[100];
+  int index = 0;
+  char temp;
+  while (cnt) {
+    int mod = cnt % 10;
+    char c = mod + '0';
+    buf[index++] = c;
+    cnt /= 10;
+  }
+  for (int i = 0; i <= index; ++i) {
+    temp = buf[i];
+    buf[i] = buf[index - i];
+    buf[index - i] = temp;
+  }
+  return buf;
+}
 // Execute cmd.  Never returns.
 void runcmd(struct cmd *cmd) {
   int p[2];
@@ -126,7 +142,7 @@ void runcmd(struct cmd *cmd) {
 
 // 存储命令的文件
 int script_fd = -1;
-
+int history_fd;
 int get_oneline_of_cmd(char *buf, int nbuf) {
   if (script_fd == -1) {
     fprintf(2, "$ ");
@@ -163,6 +179,19 @@ void process_one_cmd(char *buf) {
     if (chdir(buf + 3) < 0) fprintf(2, "cannot cd %s\n", buf + 3);
     return;
   }
+  if (strcmp(buf, "history\n")) {
+    if ((history_fd = open("hiscom", O_RDWR | O_CREATE)) < 0) {
+      fprintf(2, "open failed\n");
+      exit(1);
+    }
+    printf("command:%s\n", buf);
+    if (write(history_fd, buf, sizeof(buf)) < 0) {
+      fprintf(2, "write failed\n");
+      exit(1);
+    }
+    command_cnt++;
+  }
+
   // 支持wait命令
   if (memcmp(buf, "wait ", 5) == 0) {
     sleep(atoi(buf + 5));
@@ -339,7 +368,17 @@ struct cmd *nulterminate(struct cmd *);
 struct cmd *parsecmd(char *s) {
   char *es;
   struct cmd *cmd;
+  struct execcmd *ecmd;
+  char *history = "history\n";
+  if (!strcmp(s, history)) {
+    cmd = execcmd();
+    cmd->type = EXEC;
+    ecmd = (struct execcmd *)cmd;
 
+    ecmd->argv[0] = "history";
+    ecmd->argv[1] = "hiscom";
+    return cmd;
+  }
   es = s + strlen(s);
   cmd = parseline(&s, es);
   peek(&s, es, "");
