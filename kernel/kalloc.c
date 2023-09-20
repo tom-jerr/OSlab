@@ -8,7 +8,7 @@
 #include "spinlock.h"
 #include "riscv.h"
 #include "defs.h"
-
+#define PAGESIZE 4096
 void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
@@ -79,4 +79,16 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+// sysinfo free mem
+int freememcnt(void) {
+  struct run* init;
+  int memcnt = 0;
+  init = kmem.freelist;
+  while(init) {
+    memcnt++;
+    init = init->next;
+  }
+  return memcnt*PAGESIZE;
 }

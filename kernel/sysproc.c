@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -90,4 +91,32 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+// system call tracing
+uint64 sys_trace(void) {
+  int n;
+  argint(0, &n);
+  if (n < 0) return -1;
+  myproc()->mask = n;
+  return 0;
+}
+
+// system call sysinfo
+// Copy from kernel to user.
+// Copy len bytes from src to virtual address dstva in a given page table.
+// Return 0 on success, -1 on error.
+uint64 sys_sysinfo(void) {
+  struct sysinfo info;
+  uint64 addr;
+  argaddr(0, &addr);
+  if (addr < 0) return -1;
+  info.freemem = freememcnt();
+  info.nproc = unusedproccnt();
+  info.loadavg = loadavg();
+  // printf("load avg %d\n", info.loadavg);
+  if(copyout(myproc()->pagetable, addr, (char*)&info, sizeof(info)) < 0) {
+    return -1;
+  }
+  return 0;
 }

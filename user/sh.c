@@ -156,7 +156,7 @@ int getcmd(char *buf, int nbuf) {
 int main(void) {
   static char buf[100];
   int fd;
-  int history_fd;
+  // int history_fd;
 
   // Ensure that three file descriptors are open.
   while ((fd = open("console", O_RDWR)) >= 0) {
@@ -174,18 +174,19 @@ int main(void) {
       if (chdir(buf + 3) < 0) fprintf(2, "cannot cd %s\n", buf + 3);
       continue;
     }
-    if (strcmp(buf, "history\n")) {
-      if ((history_fd = open("hiscom", O_RDWR | O_CREATE)) < 0) {
-        fprintf(2, "open failed\n");
-        exit(1);
-      }
-      printf("command:%s\n", buf);
-      if (write(history_fd, buf, sizeof(buf)) < 0) {
-        fprintf(2, "write failed\n");
-        exit(1);
-      }
-      command_cnt++;
-    }
+  
+    // if (strcmp(buf, "history\n")) {
+    //   if ((history_fd = open("hiscom", O_RDWR | O_CREATE)) < 0) {
+    //     fprintf(2, "open failed\n");
+    //     exit(1);
+    //   }
+    //   printf("command:%s\n", buf);
+    //   if (write(history_fd, buf, sizeof(buf)) < 0) {
+    //     fprintf(2, "write failed\n");
+    //     exit(1);
+    //   }
+    //   command_cnt++;
+    // }
 
     if (fork1() == 0) runcmd(parsecmd(buf));
     wait(0);

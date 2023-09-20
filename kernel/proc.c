@@ -322,6 +322,10 @@ fork(void)
   np->state = RUNNABLE;
   release(&np->lock);
 
+  // system call tracing
+  acquire(&np->lock);
+  np->mask = p->mask;
+  release(&np->lock);
   return pid;
 }
 
@@ -685,4 +689,44 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// sysinfo process
+int unusedproccnt(void) {
+  struct proc* p;
+  int proccnt = 0;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    // acquire(&p->lock);
+    if(p->state != UNUSED) proccnt++;
+    // release(&p->lock);
+  }
+  return proccnt;
+}
+
+int runningproccnt() {
+    struct proc* p;
+  int proccnt = 0;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    // acquire(&p->lock);
+    if(p->state == RUNNING) proccnt++;
+    // release(&p->lock);
+  }
+  return proccnt;
+}
+
+// load avg
+int loadavg() {
+  uint begin = ticks;
+  int round = 0;
+  int sumload = 0;
+  while(ticks - begin < 21) {
+    if(round % 10 == 0) {
+
+      sumload += runningproccnt();  
+    }
+    clockintr();
+    round++;
+  }
+  sumload = sumload/3;
+  return sumload;
 }

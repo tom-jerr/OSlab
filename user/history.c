@@ -7,7 +7,6 @@ int main(int argc, char **argv) {
   int history_fd;
   char buf[512];
   int command_cnt = 0;
-  int flag_cnt;
 
   while (*cnt != '\0') {
     int i = *cnt - '0';

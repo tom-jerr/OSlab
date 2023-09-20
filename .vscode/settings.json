@@ -1,11 +1,16 @@
 {
-  "editor.formatOnSave": true,
+  "editor.formatOnSave": false,
   "editor.tabSize": 2,
   "files.associations": {
     ".gitignore": "yaml",
     ".clang-format": "yaml",
     "*.S": "asm-intel-x86-generic",
     "user.h": "c",
-    "history.h": "c"
-  },
+    "memlayout.h": "c",
+    "proc.h": "c",
+    "spinlock.h": "c",
+    "defs.h": "c",
+    "riscv.h": "c",
+    "types.h": "c"
+  }
 }
