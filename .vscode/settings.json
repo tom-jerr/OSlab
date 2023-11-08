@@ -1,0 +1,21 @@
+{
+  "workbench.iconTheme": "material-icon-theme",
+  "workbench.colorTheme": "One Dark Pro",
+  // c/c++ settings
+  // "[c]": {
+  //     "editor.defaultFormatter": "xaver.clang-format"
+  // },
+  "[cpp]": {
+    "editor.defaultFormatter": "xaver.clang-format"
+  },
+  // editor settings
+  "editor.fontWeight": "450",
+  "editor.fontSize": 18,
+  "editor.rulers": [
+    80,
+    120
+  ],
+  "editor.tabSize": 2,
+  // "editor.formatOnSave": true,
+  "C_Cpp.intelliSenseEngine": "disabled",
+}
