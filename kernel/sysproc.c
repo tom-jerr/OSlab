@@ -70,14 +70,45 @@ sys_sleep(void)
 }
 
 
-#ifdef LAB_PGTBL
+// #ifdef LAB_PGTBL
 int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  uint64 uaddr;
+  int plen;
+  uint64 buf;
+
+  // 获取参数
+  argaddr(0, &uaddr);
+  argint(1, &plen);
+  argaddr(2, &buf);
+  
+  // 设置最大数量的页查询
+  if(plen > 32) return -1;
+
+  // 判断是否访问过页
+  struct proc *p = myproc();
+  // 内核中的mask
+  uint64 bufmask = 0;
+  for(uint64 i = 0; i < plen; ++i) {
+    pte_t *pte;
+    pte = walk(p->pagetable, uaddr + PGSIZE * i, 0);
+    // vmprint(p->pagetable);  // 打印虚拟内存
+    if(pte != 0 && ((*pte) & PTE_A)) {
+      // buf中该页对应的位置为1；重新设置PTE_A为0
+      bufmask |= (1 << i);
+      *pte &= ~PTE_A;
+    }
+  }
+
+  // 将buf拷贝到用户空间
+  if(copyout(p->pagetable, buf, (char *)&bufmask, sizeof(buf)) < 0)
+    return -1;
+
   return 0;
 }
-#endif
+// #endif
 
 uint64
 sys_kill(void)
