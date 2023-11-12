@@ -133,3 +133,15 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void backtrace(void)
+{
+  uint64 fp = r_fp();
+  // 如果fp没有到达栈顶继续向上找
+  // 栈中fp-8是ra，fp-16是上一个fp
+  while(fp != PGROUNDUP(fp)) {
+    uint64 ra = *(uint64*)(fp - 8);
+    printf("%p\n", ra);
+    fp = *(uint64*)(fp - 16);
+  }
+}

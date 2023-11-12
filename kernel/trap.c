@@ -77,8 +77,22 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2) {
+    // 如果设置时钟中断间隔；进行倒计时，如果此时没有其他倒计时，就正常执行
+    // 保存trapframe，等待sigreturn的恢复
+    if(p->alarm_interval != 0) {
+      if(--p->alarm_ticks <= 0) {
+        if(p->alarm_enabled) {
+          p->alarm_ticks = p->alarm_interval;
+          p->alarm_enabled = 0;
+          memmove(p->alarm_trapframe, p->trapframe, sizeof(struct trapframe));
+          p->trapframe->epc = (uint64)p->alarm_handler;
+        }
+      }
+    }
+    // 出让CPU
     yield();
+  }
 
   usertrapret();
 }
@@ -219,3 +233,20 @@ devintr()
   }
 }
 
+int _sigalarm(int ticks, void(*handler)()) {
+  // 设置 myproc 中的相关属性
+  struct proc *p = myproc();
+  p->alarm_interval = ticks;
+  p->alarm_handler = handler;
+  p->alarm_ticks = ticks;
+  return 0;
+}
+
+int _sigreturn(void) {
+  // 将 trapframe 恢复到时钟中断之前的状态，恢复原本正在执行的程序流
+  struct proc *p = myproc();
+  memmove(p->trapframe, p->alarm_trapframe, sizeof(struct trapframe));
+  p->alarm_enabled = 1;
+  // syscall会改变a0的值，所以需要重新设置
+  return p->trapframe->a0;
+}
