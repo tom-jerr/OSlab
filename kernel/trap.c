@@ -247,6 +247,6 @@ int _sigreturn(void) {
   struct proc *p = myproc();
   memmove(p->trapframe, p->alarm_trapframe, sizeof(struct trapframe));
   p->alarm_enabled = 1;
-  // syscall会改变a0的值，所以需要重新设置
+  // syscall会改变a0的值，所以返回p->frame->a0来保证a0不改变
   return p->trapframe->a0;
 }
