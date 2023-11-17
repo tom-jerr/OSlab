@@ -103,8 +103,13 @@ kfree(void *pa)
 - 进程正文段.text只有读权限，COW不能重新分配物理页
 ## vm.c
 - copyout时，进程正文段.text也不能copy
-- va < PGSIZE，直接返回错误
-![Alt text](image.png)
+  - usertest中对copyout测试的地址
+  - va < PGSIZE，直接返回错误
+  ~~~C
+  uint64 addrs[] = { 0LL, 0x80000000LL, 0xffffffffffffffff };
+  ~~~
+
+  ![Alt text](image.png)
 
 ## 结果
 ~~~shell

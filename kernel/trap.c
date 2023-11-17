@@ -70,8 +70,8 @@ usertrap(void)
   } else if (r_scause() == 13 || r_scause() == 15) {
     uint64 va = r_stval();
     // 用户低地址段是.text，只读段，不能copy
-    if(va < PGSIZE)
-      p->killed = -1;
+    // if(va < PGSIZE)
+    //   p->killed = -1;
     if(cow_alloc(p->pagetable, va) < 0)
       p->killed = -1;
   

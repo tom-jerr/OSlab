@@ -324,11 +324,13 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     
     pa = PTE2PA(*pte);
-    // 父子进程都需要屏蔽PTE_W位
-    *pte &= ~PTE_W; 
-    *pte |= PTE_COW;
+    // 只读页不需要其他操作
+    if(*pte & PTE_W){
+      // 父子进程都需要屏蔽PTE_W位
+      *pte &= ~PTE_W; 
+      *pte |= PTE_COW; 
+    }
     flags = PTE_FLAGS(*pte);
-
     // 父子进程映射到同一页上
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
