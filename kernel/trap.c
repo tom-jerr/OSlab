@@ -248,5 +248,6 @@ int _sigreturn(void) {
   memmove(p->trapframe, p->alarm_trapframe, sizeof(struct trapframe));
   p->alarm_enabled = 1;
   // syscall会改变a0的值，所以返回p->frame->a0来保证a0不改变
-  return p->trapframe->a0;
+ return p->trapframe->a0;
+  // return 0;
 }
