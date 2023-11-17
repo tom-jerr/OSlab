@@ -23,10 +23,48 @@ struct {
   struct run *freelist;
 } kmem;
 
+// 物理页引用计数
+struct {
+  struct spinlock lock;
+  int count[PHYSTOP / PGSIZE + 1];
+} refcnt;
+
+void increase_refcnt(void *pa)
+{
+  acquire(&refcnt.lock);
+  refcnt.count[(uint64)pa / PGSIZE]++;
+  release(&refcnt.lock);
+}
+
+void decrease_refcnt(void *pa)
+{
+  acquire(&refcnt.lock);
+  refcnt.count[(uint64)pa / PGSIZE]--;
+  release(&refcnt.lock);
+}
+
+int get_refcnt(void* pa)
+{
+  int cnt;
+  acquire(&refcnt.lock);
+  cnt = refcnt.count[(uint64)pa / PGSIZE];
+  release(&refcnt.lock);
+  return cnt;
+}
+
+// 初始化引用计数 = 1
+void refcnt_init(void *pa) 
+{
+  acquire(&refcnt.lock);
+  refcnt.count[(uint64)pa / PGSIZE] = 1;
+  release(&refcnt.lock);
+}
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  initlock(&refcnt.lock, "refcnt");
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -35,8 +73,11 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
+    // 释放前，将引用计数置为1
+    refcnt.count[(uint64)p / PGSIZE] = 1;
     kfree(p);
+  }
 }
 
 // Free the page of physical memory pointed at by pa,
@@ -46,6 +87,15 @@ freerange(void *pa_start, void *pa_end)
 void
 kfree(void *pa)
 {
+  // 引用计数减1，只有引用计数归零才进行释放内存
+  acquire(&kmem.lock);
+  decrease_refcnt(pa);
+  if(get_refcnt(pa) > 0) {
+    release(&kmem.lock);
+    return;
+  }
+  release(&kmem.lock);
+
   struct run *r;
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
@@ -55,7 +105,7 @@ kfree(void *pa)
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
-
+  
   acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
@@ -72,8 +122,10 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+    refcnt_init(r);
+  }
   release(&kmem.lock);
 
   if(r)

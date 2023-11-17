@@ -67,6 +67,14 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 13 || r_scause() == 15) {
+    uint64 va = r_stval();
+    // 用户低地址段是.text，只读段，不能copy
+    if(va < PGSIZE)
+      p->killed = -1;
+    if(cow_alloc(p->pagetable, va) < 0)
+      p->killed = -1;
+  
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

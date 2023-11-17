@@ -160,8 +160,9 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
-      panic("mappages: remap");
+    // COW需要对物理页进行重新映射
+    // if(*pte & PTE_V)
+    //   panic("mappages: remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -315,22 +316,25 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+    
     pa = PTE2PA(*pte);
+    // 父子进程都需要屏蔽PTE_W位
+    *pte &= ~PTE_W; 
+    *pte |= PTE_COW;
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+
+    // 父子进程映射到同一页上
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
+    // increase ref count of pa
+    increase_refcnt((void*)pa);
   }
   return 0;
 
@@ -352,6 +356,45 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+// COW page helper functions
+// 分配新的页给COW
+int 
+cow_alloc(pagetable_t pagetable, uint64 va)
+{
+  if(va >= MAXVA) return -1;
+  va = PGROUNDDOWN(va);
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0) return -1;
+  if((*pte & PTE_COW) == 0 || (*pte & PTE_U) == 0 || (*pte & PTE_V) == 0)
+    return -1;
+
+  // 得到 va对应的 pa
+  uint64 pa = PTE2PA(*pte);
+  // 直接对pa进行改变，不必再重新分配页
+  if(get_refcnt((void*)pa) == 1) {
+    *pte &= (~PTE_COW);
+    *pte |= PTE_W;
+    return 0;
+  }
+
+ 
+  // 否则，重新分配新的物理页, 减少原来物理页的引用计数
+  kfree((void*)pa);
+  char *mem = kalloc();
+  if(mem == 0){
+    return -1;
+  }
+
+  memmove(mem, (char *)pa, PGSIZE);
+  uint64 flag = PTE_FLAGS(*pte) | PTE_W;
+  flag = flag & (~PTE_COW);
+  // 直接改变页表条目即可
+  // 或者采用uvmnumap再uvmmap
+  (*pte) = PA2PTE((uint64)mem) | flag;
+  return 0;
+}
+
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -365,10 +408,16 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     if(va0 >= MAXVA)
       return -1;
-    pte = walk(pagetable, va0, 0);
-    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+    // 用户低地址段是.text，只读段，不能copy
+    if(va0 < PGSIZE)
       return -1;
+    pte = walk(pagetable, va0, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0)
+      return -1;
+    if((*pte) & PTE_COW) {
+      if(cow_alloc(pagetable, va0) <0)
+        return -1;
+    }
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
