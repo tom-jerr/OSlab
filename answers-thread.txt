@@ -1,0 +1,4 @@
+1. thread_switch needs to save/restore only the callee-save registers. Why?
+   因为risc-v规定caller寄存器由编译器代为保存；用户可以不必保存
+
+2. 多线程对链表进行操作，会造成指针出错；顺序有问题
