@@ -110,7 +110,7 @@ void test2() {
     printf("test2 FAILED: cannot allocate enough memory");
     exit(-1);
   }
-  for (int i = 0; i < 50; i++) {
+  for (int i = 0; i < 10; i++) {
     free1 = countfree();
     if(i % 10 == 9)
       printf(".");

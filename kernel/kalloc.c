@@ -98,7 +98,7 @@ kalloc(void)
   if(!kmem[idx].freelist) {
     // find other CPU's free list
     // set steal page num
-    int steal_page_num = 8;
+    int steal_page_num = 16;
     for(int i = 0; i < NCPU; ++i) {
       if(i == idx) continue;
       while (kmem[i].freelist && steal_page_num) {
@@ -115,8 +115,6 @@ kalloc(void)
       }
     }
   }
-
-
 
   r = kmem[idx].freelist;
   if(r)
