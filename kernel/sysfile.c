@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "memlayout.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -500,6 +501,178 @@ sys_pipe(void)
     fileclose(rf);
     fileclose(wf);
     return -1;
+  }
+  return 0;
+}
+
+uint64
+sys_mmap(void)
+{
+  uint64 addr, sz, offset;
+  int prot, flags, fd;
+  struct file *file;
+  argaddr(0, &addr);
+  argaddr(1, &sz);
+  argint(2,&prot);
+  argint(3,&flags);
+  argfd(4,&fd,&file);
+  argaddr(5,&offset);
+  
+  if(!file->writable && (prot & PROT_WRITE) && flags == MAP_SHARED)
+    return -1;
+
+  sz = PGROUNDUP(sz);
+  struct proc *p = myproc();
+  struct VMA *vma = 0;
+
+  if(p->sz > MAXVA - sz)
+    panic("mmap: too large size");
+
+  // find a free vma
+  // 填写vma的信息，虚拟地址为进程堆的地址
+  for(int i = 0; i < MAXVMA; i++) {
+    if(p->vma[i].valid == 0) {
+      vma = &p->vma[i];
+      vma->start = p->sz;
+      vma->sz = sz;
+      vma->perm = prot;
+      vma->flags = flags;
+      vma->file = file;
+      vma->offset = offset;
+      vma->valid = 1;
+      // 进程堆地址增加
+      p->sz += sz;
+      filedup(vma->file);
+      return vma->start;
+    }
+  }
+  return -1;
+}
+
+int 
+vma_lazy_alloc(uint64 va) 
+{
+  struct proc *p = myproc();
+  struct VMA *vma = 0;
+
+  if(va >= p->sz || va > MAXVA || PGROUNDUP(va) == PGROUNDDOWN(p->trapframe->sp)) p->killed = 1;
+
+  for(int i = 0; i < MAXVMA; i++) {
+    if(p->vma[i].valid && p->vma[i].start <= va \
+    && va < p->vma[i].start + p->vma[i].sz) {
+      vma = &p->vma[i];
+      break;
+    }
+  }
+  if(vma == 0) {
+    // panic("vma_lazy_alloc: no vma");
+    return 0;
+  }
+
+  // allocate physical page
+  void* pa = kalloc();
+  if(pa == 0) {
+    panic("vma_lazy_alloc: no memory");
+  }
+  memset(pa, 0, PGSIZE);
+  va = PGROUNDDOWN(va);
+  // read data from disk
+  begin_op();
+  ilock(vma->file->ip);
+  readi(vma->file->ip, 0, (uint64)pa, vma->offset + va - vma->start, PGSIZE);
+  iunlock(vma->file->ip);
+  end_op();
+
+  // set perm
+  int perm = PTE_U;
+  if(vma->perm & PROT_READ) {
+    perm |= PTE_R;
+  }
+  if(vma->perm & PROT_WRITE) {
+    perm |= PTE_W;
+  }
+  if(vma->perm & PROT_EXEC) {
+    perm |= PTE_X;
+  }
+
+  // map physical page to virtual page
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)pa, perm) != 0) {
+    kfree((void*)pa);
+    panic("vma_lazy_alloc: mappages");
+  }
+  return 0;
+}
+
+int
+filewrite_offset(struct file *f, uint64 addr, int n, int offset) {
+  int r, ret = 0;
+  if(f->writable == 0)
+      return -1;
+  if(f->type != FD_INODE) {
+      panic("filewrite: only FINODE implemented!");
+  }
+
+  int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+  int i = 0;
+  while(i < n) {
+    int n1 = n - i;
+    if(n1 > max)
+        n1 = max;
+
+    begin_op();
+    ilock(f->ip);
+    if ((r = writei(f->ip, 1, addr + i, offset, n1)) > 0)
+      offset += r;
+    iunlock(f->ip);
+    end_op();
+
+    if(r != n1) {
+      break;
+    }
+    i += r;
+  }
+  ret = (i == n ? n : -1);
+  return ret;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr, sz;
+  argaddr(0, &addr);
+  argaddr(1, &sz);
+  struct proc *p = myproc();
+  struct VMA * vma = 0;
+
+  addr = PGROUNDDOWN(addr);
+  sz = PGROUNDUP(sz);
+  // find vma to unmap
+  for(int i = 0; i < MAXVMA; i++) {
+    if (addr >= p->vma[i].start && addr < p->vma[i].start + p->vma[i].sz) {
+      vma = &p->vma[i];
+      break;
+    }
+  }
+  if(vma == 0) {
+    // panic("munmap: no vma");
+    return 0;
+  }
+
+  if(vma->start == addr) {
+    uint64 offset = vma->offset;
+    vma->start += sz;
+    vma->sz -= sz;
+    vma->offset += sz;
+    // need to write back to disk
+    if(vma->flags & MAP_SHARED)
+      // 不能简单的直接将文件写回，因为可能只是部分写回
+      filewrite_offset(vma->file, addr, sz, offset);
+    // unmap
+    uvmunmap(p->pagetable, addr, sz/PGSIZE, 1);
+    if(vma->sz == 0) {
+      fileclose(vma->file);
+      vma->valid = 0;
+    }
   }
   return 0;
 }

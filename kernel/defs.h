@@ -155,6 +155,9 @@ int             fetchstr(uint64, char*, int);
 int             fetchaddr(uint64, uint64*);
 void            syscall();
 
+// sysfile.c
+int             vma_lazy_alloc(uint64);
+
 // trap.c
 extern uint     ticks;
 void            trapinit(void);

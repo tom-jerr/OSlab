@@ -68,11 +68,19 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    setkilled(p);
+    uint64 va = r_stval();
+    if((r_scause() == 13 || r_scause() == 15)){ // vma lazy allocation
+      if(vma_lazy_alloc(va) < 0) {
+        goto unexpected_scause;
+      }
+      // printf("usertrap(): lazy allocation\n");
+    } else {
+      unexpected_scause:
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+    }
   }
-
   if(killed(p))
     exit(-1);
 

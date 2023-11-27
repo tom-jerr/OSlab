@@ -6,6 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
+
+#define MAP_SHARED      0x01
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -138,6 +140,11 @@ found:
     freeproc(p);
     release(&p->lock);
     return 0;
+  }
+
+  // Clear VMA
+  for(int i = 0; i < MAXVMA; i++) {
+    p->vma[i].valid = 0;
   }
 
   // Set up new context to start executing at forkret,
@@ -308,6 +315,17 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  // copy vmas created by mmap.
+  // increase file ref count.
+  for(i = 0; i < MAXVMA; i++) {
+    if(p->vma[i].sz) {
+        memmove(&(np->vma[i]), &(p->vma[i]), sizeof(struct VMA));
+        filedup(p->vma[i].file);
+    } else {
+        np->vma[i].sz = 0;
+    }
+  }
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -357,6 +375,17 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+
+  // clear vma
+  for(int i = 0; i < MAXVMA; ++i) {
+    if(p->vma[i].valid) {
+      if(p->vma[i].flags & MAP_SHARED) 
+        filewrite(p->vma[i].file, p->vma[i].start, p->vma[i].sz);
+      fileclose(p->vma[i].file);
+      uvmunmap(p->pagetable, p->vma[i].start, p->vma[i].sz/PGSIZE, 1);
+      p->vma[i].valid = 0;
     }
   }
 

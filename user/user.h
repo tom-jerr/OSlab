@@ -1,7 +1,7 @@
-#ifdef LAB_MMAP
+// #ifdef LAB_MMAP
 typedef unsigned long size_t;
 typedef long int off_t;
-#endif
+// #endif
 struct stat;
 
 // system calls
@@ -34,6 +34,9 @@ int pgaccess(void *base, int len, void *mask);
 // usyscall region
 int ugetpid(void);
 #endif
+void *mmap(void *, size_t, int, int,
+           int, off_t);
+int munmap(void *, size_t);
 
 // ulib.c
 int stat(const char*, struct stat*);
