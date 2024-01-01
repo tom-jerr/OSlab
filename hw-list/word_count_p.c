@@ -35,7 +35,9 @@ void init_words(word_count_list_t* wclist) { /* TODO */
     printf("wclist is NULL\n");
     return;
   }
-  list_init(wclist);                      
+  list_init(wclist);  
+  // 初始化锁
+  pthread_mutex_init(&wclist->lock, NULL);                    
 }
 
 size_t len_words(word_count_list_t* wclist) {
